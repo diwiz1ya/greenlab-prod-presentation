@@ -45,67 +45,105 @@ export function renderScanScreen(station, orders) {
 }
 
 export function renderSimpleScanMode(station, orders, recentScans) {
-  const sampleCodesByStation = {
-    washing: ["QR:B-2402-1", "QR:B-2402-2"],
-    qc: ["QR:B-2402-1", "QR:B-2402-2"],
-    drying: ["QR:B-2402-1", "QR:B-2402-2"],
-    ironing: ["QR:B-2403-1", "QR:B-2402-1"],
-    pickup: ["QR:B-2404-1", "QR:B-2402-1"]
-  };
-  const sampleCodes = sampleCodesByStation[station] || ["QR:B-2402-1"];
+  return renderSimpleScanModeWithStatus(station, orders, recentScans, null);
+}
+
+function formatScanTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString();
+}
+
+function renderScanStatus(lastScan) {
+  if (!lastScan) {
+    return `
+      <article class="scan-status idle">
+        <div class="eyebrow">Результат скана</div>
+        <strong>Ожидание</strong>
+        <p class="muted">Сканируйте QR-код, чтобы увидеть результат проверки этапа.</p>
+      </article>
+    `;
+  }
+
+  const statusClass = lastScan.ok ? "ok" : "error";
+  const label = lastScan.ok ? "Принято" : "Ошибка";
+  return `
+    <article class="scan-status ${statusClass}">
+      <div class="eyebrow">Результат скана</div>
+      <strong>${label}</strong>
+      <p>${escapeHtml(lastScan.message || "")}</p>
+      <div class="muted">
+        ${lastScan.code ? `QR: ${escapeHtml(lastScan.code)} · ` : ""}
+        ${formatScanTime(lastScan.createdAt)}
+      </div>
+    </article>
+  `;
+}
+
+export function renderSimpleScanModeWithStatus(station, orders, recentScans, lastScan) {
+  const stationLabel = stationLabels[station] || station;
 
   return `
-    <section class="panel simple-scan-shell stack">
-      <div class="header-row">
+    <section class="panel simple-scan-shell">
+      <div class="kiosk-layout">
         <div>
-          <div class="eyebrow">Простой режим оператора</div>
-          <h2>${escapeHtml(stationLabels[station])}</h2>
+          <div class="eyebrow">Скан-пост</div>
+          <h2>${escapeHtml(stationLabel)}</h2>
+          <p class="muted">Сканер работает как клавиатура: считайте QR и нажмите Enter.</p>
         </div>
-        <span class="pill ok">Быстрый ввод</span>
-      </div>
+        <div class="scan-kiosk-form">
+          <label>
+            QR-код корзины
+            <input
+              class="scan-large"
+              id="simple-scan-input"
+              data-scan-input-for="${station}"
+              placeholder="QR:B-2402-1"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <div class="action-row">
+            <button data-run-scan="${station}" data-scan-input-id="simple-scan-input">Проверить скан</button>
+          </div>
+          <div class="kiosk-meta">
+            <span class="pill">${escapeHtml(stationLabel)}</span>
+            <span class="pill ${orders.length ? "ok" : "warn"}">В работе: ${orders.length}</span>
+          </div>
+        </div>
+        ${renderScanStatus(lastScan)}
 
-      <label>
-        Сканируйте или вставьте QR-код
-        <input class="scan-large" id="simple-scan-input" data-scan-input-for="${station}" placeholder="QR:B-2402-1" />
-      </label>
+        ${station === "pickup" ? `
+          <div class="simple-pickup-list stack">
+            <div class="eyebrow">Готовые к выдаче</div>
+            ${orders.length
+              ? orders.map((order) => `
+                  <article class="card">
+                    ${renderOrderMeta(order)}
+                    <div class="action-row">
+                      <button data-open-order="${order.id}">Открыть детали</button>
+                      <button data-complete-pickup="${order.id}" ${order.ready_for_pickup ? "" : "disabled"}>Завершить выдачу</button>
+                    </div>
+                  </article>
+                `).join("")
+              : '<div class="card"><span class="muted">Нет заказов для выдачи.</span></div>'}
+          </div>
+        ` : ""}
 
-      <div class="action-row">
-        <button data-run-scan="${station}" data-scan-input-id="simple-scan-input">Провести скан</button>
-      </div>
-
-      <div class="simple-samples">
-        ${sampleCodes.map((code) => `<code>${escapeHtml(code)}</code>`).join("")}
-      </div>
-
-      ${station === "pickup" ? `
-        <div class="simple-pickup-list stack">
-          <div class="eyebrow">Готовые заказы</div>
-          ${orders.length
-            ? orders.map((order) => `
-                <article class="card">
-                  ${renderOrderMeta(order)}
-                  <div class="action-row">
-                    <button data-open-order="${order.id}">Открыть детали</button>
-                    <button data-complete-pickup="${order.id}" ${order.ready_for_pickup ? "" : "disabled"}>Завершить выдачу</button>
-                  </div>
-                </article>
+        <div class="simple-recent stack">
+          <div class="eyebrow">Последние сканы</div>
+          ${recentScans.length
+            ? recentScans.map((row) => `
+                <div class="log-item">
+                  <strong>${escapeHtml(row.order_public_id)} ${row.basket_code ? `· ${escapeHtml(row.basket_code)}` : ""}</strong>
+                  <div class="muted">${new Date(row.created_at).toLocaleString()}</div>
+                  <div class="pill ${row.result === "ok" ? "ok" : "error"}">${escapeHtml(row.result)}</div>
+                  <div>${escapeHtml(row.message)}</div>
+                </div>
               `).join("")
-            : '<div class="card"><span class="muted">Нет заказов для выдачи.</span></div>'}
+            : '<div class="log-item"><span class="muted">Сканов пока нет.</span></div>'}
         </div>
-      ` : ""}
-
-      <div class="simple-recent stack">
-        <div class="eyebrow">Последние сканы (${escapeHtml(stationLabels[station])})</div>
-        ${recentScans.length
-          ? recentScans.map((row) => `
-              <div class="log-item">
-                <strong>${escapeHtml(row.order_public_id)} ${row.basket_code ? `· ${escapeHtml(row.basket_code)}` : ""}</strong>
-                <div class="muted">${escapeHtml(row.actor)} · ${new Date(row.created_at).toLocaleString()}</div>
-                <div class="pill ${row.result === "ok" ? "ok" : "error"}">${escapeHtml(row.result)}</div>
-                <div>${escapeHtml(row.message)}</div>
-              </div>
-            `).join("")
-          : '<div class="log-item"><span class="muted">Сканов пока нет.</span></div>'}
       </div>
     </section>
   `;

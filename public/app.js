@@ -2,9 +2,9 @@ import { api } from "./api.js";
 import { bindGlobalActions } from "./actions.js";
 import { renderLogin } from "./render/login.js";
 import { renderOrderDetails, renderOverview, renderPickup, renderSorting, renderSyncQueue } from "./render/orders.js";
-import { renderScanScreen, renderSimpleScanMode } from "./render/scan.js";
+import { renderScanScreen, renderSimpleScanModeWithStatus } from "./render/scan.js";
 import { renderDemoControls, renderHero, renderNoAccess, renderSimpleWorkerHome, renderStationPicker } from "./render/stations.js";
-import { app, applyRoleDefaults, consumeNotice, getAllowedStations, isManagerRole, isScanStation, resetSession, state, stationLabels } from "./state.js";
+import { app, applyRoleDefaults, consumeNotice, getAllowedStations, getLastScanForStation, isManagerRole, isScanStation, resetSession, state, stationLabels } from "./state.js";
 import { escapeHtml } from "./utils.js";
 
 function showLogin(error) {
@@ -33,10 +33,11 @@ async function boot() {
 
 async function renderApp() {
   const allowedStations = getAllowedStations();
+  const managerView = isManagerRole();
   const [stationsResponse, overview, syncQueue] = await Promise.all([
     api("/api/stations"),
     allowedStations.includes("overview") ? api("/api/overview") : Promise.resolve({ counts: {}, orders: [] }),
-    api("/api/sync-queue")
+    managerView ? api("/api/sync-queue") : Promise.resolve({ items: [], summary: null })
   ]);
 
   const notice = consumeNotice();
@@ -107,6 +108,7 @@ function renderScreenContent({ stations, overview, stationData, orderDetails, sy
   const managerView = isManagerRole();
   const forceSimpleOperatorView = state.screen === "station" && !managerView && isScanStation(state.currentStation);
   const simpleScanView = state.screen === "station" && isScanStation(state.currentStation) && (state.simpleMode || forceSimpleOperatorView);
+  const lastScan = getLastScanForStation(state.currentStation);
 
   if (state.screen === "station-picker") {
     if (!managerView && state.currentStation) {
@@ -137,7 +139,7 @@ function renderScreenContent({ stations, overview, stationData, orderDetails, sy
   if (simpleScanView) {
     return `
       ${notice ? `<div class="notice ${notice.type}">${escapeHtml(notice.text)}</div>` : ""}
-      ${renderSimpleScanMode(state.currentStation, stationData[state.currentStation]?.orders || [], recentScans)}
+      ${renderSimpleScanModeWithStatus(state.currentStation, stationData[state.currentStation]?.orders || [], recentScans, lastScan)}
       ${orderDetails ? renderOrderDetails(orderDetails) : ""}
       ${managerView ? renderDemoControls() : ""}
       ${managerView ? renderSyncQueue(syncQueue) : ""}

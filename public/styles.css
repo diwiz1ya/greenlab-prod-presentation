@@ -113,3 +113,53 @@ button.warn:hover {
 .simple-pickup-list .card {
   border-style: dashed;
 }
+.kiosk-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.scan-kiosk-form {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.kiosk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scan-status {
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  min-height: 126px;
+  padding: 16px;
+}
+
+.scan-status strong {
+  font-size: 30px;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.scan-status.ok {
+  background: #e6f8ef;
+  border-color: rgba(21, 111, 90, 0.38);
+  color: #0f5e4b;
+}
+
+.scan-status.error {
+  background: #fbe8e2;
+  border-color: rgba(212, 93, 47, 0.34);
+  color: #9d3f1f;
+}
+
+.scan-status.idle {
+  background: #f7f4ed;
+}

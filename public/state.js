@@ -8,7 +8,8 @@ export const state = {
   selectedOrderId: null,
   notice: null,
   deniedStation: null,
-  simpleMode: localStorage.getItem("greenlab-simple-mode") === "1"
+  simpleMode: localStorage.getItem("greenlab-simple-mode") === "1",
+  lastScan: null
 };
 
 export const stationLabels = {
@@ -82,7 +83,26 @@ export function resetSession() {
   state.currentStation = null;
   state.selectedOrderId = null;
   state.deniedStation = null;
+  state.lastScan = null;
   localStorage.removeItem("greenlab-demo-token");
+}
+
+export function setLastScan(status) {
+  state.lastScan = {
+    ...status,
+    createdAt: new Date().toISOString()
+  };
+}
+
+export function clearLastScan() {
+  state.lastScan = null;
+}
+
+export function getLastScanForStation(station) {
+  if (!state.lastScan || state.lastScan.station !== station) {
+    return null;
+  }
+  return state.lastScan;
 }
 
 export function setNotice(type, text) {

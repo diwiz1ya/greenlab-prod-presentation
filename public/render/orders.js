@@ -167,10 +167,22 @@ export function renderOrderDetails(order) {
 }
 
 export function renderSyncQueue(syncQueue) {
+  const summary = syncQueue.summary || {};
   return `
-    <section class="panel">
-      <div class="eyebrow">Заглушка CleanCloud</div>
-      <h2>Последняя очередь синхронизации</h2>
+    <section class="panel stack">
+      <div class="header-row">
+        <div>
+          <div class="eyebrow">CleanCloud sync</div>
+          <h2>Очередь синхронизации</h2>
+        </div>
+        <button class="secondary" data-run-sync-now>Запустить sync сейчас</button>
+      </div>
+      <div class="kiosk-meta">
+        <span class="pill">pending: ${summary.pending || 0}</span>
+        <span class="pill">processing: ${summary.processing || 0}</span>
+        <span class="pill ok">processed: ${summary.processed || 0}</span>
+        <span class="pill ${summary.failed ? "error" : ""}">failed: ${summary.failed || 0}</span>
+      </div>
       <div class="scan-log">
         ${
           syncQueue.items.length
@@ -179,8 +191,11 @@ export function renderSyncQueue(syncQueue) {
                   (item) => `
                     <div class="log-item">
                       <strong>${escapeHtml(item.action)}</strong>
-                      <div class="muted">Заказ ID ${item.order_id} · ${escapeHtml(item.status)}</div>
-                      <code>${escapeHtml(item.payload)}</code>
+                      <div class="muted">
+                        Заказ ID ${item.order_id} · ${escapeHtml(item.status)} · попытки: ${item.attempts || 0}
+                      </div>
+                      ${item.last_error ? `<div class="pill error">${escapeHtml(item.last_error)}</div>` : ""}
+                      <code>${escapeHtml(item.payload || "")}</code>
                     </div>
                   `
                 )

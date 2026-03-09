@@ -1,27 +1,71 @@
 import { api, downloadScanExport } from "./api.js";
-import { app, isManagerRole, resetSession, setNotice, setSimpleMode, state, stationLabels } from "./state.js";
+import { app, clearLastScan, isManagerRole, resetSession, setLastScan, setNotice, setSimpleMode, state, stationLabels } from "./state.js";
+
+function playScanTone(ok) {
+  const AudioContextImpl = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextImpl) return;
+
+  const context = new AudioContextImpl();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.value = ok ? 880 : 220;
+  gain.gain.value = 0.0001;
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+
+  const now = context.currentTime;
+  gain.gain.exponentialRampToValueAtTime(0.09, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + (ok ? 0.16 : 0.24));
+
+  oscillator.start(now);
+  oscillator.stop(now + (ok ? 0.17 : 0.25));
+
+  oscillator.onended = () => context.close().catch(() => {});
+}
 
 export async function runScanFromInput(station, inputId, renderApp) {
   const input = document.getElementById(inputId);
   if (!input) {
+    setLastScan({ station, ok: false, code: "", message: "Поле сканирования не найдено." });
     setNotice("error", "Поле сканирования не найдено.");
     await renderApp();
+    return;
+  }
+  const code = input.value.trim();
+  if (!code) {
+    setLastScan({ station, ok: false, code: "", message: "Пустой QR-код." });
+    setNotice("warn", "Скан не выполнен: пустой QR-код.");
+    await renderApp();
+    const refreshedInput = document.getElementById(inputId);
+    if (refreshedInput) refreshedInput.focus();
     return;
   }
 
   try {
     const result = await api("/api/scan", {
       method: "POST",
-      body: JSON.stringify({ station, qrCode: input.value })
+      body: JSON.stringify({ station, qrCode: code })
     });
     state.selectedOrderId = result.order.id;
+    setLastScan({ station, ok: true, code, message: result.message });
     setNotice("ok", result.message);
+    playScanTone(true);
     input.value = "";
   } catch (error) {
+    setLastScan({ station, ok: false, code, message: error.message });
     setNotice("error", error.message);
+    playScanTone(false);
   }
 
   await renderApp();
+  const refreshedInput = document.getElementById(inputId);
+  if (refreshedInput) {
+    refreshedInput.focus();
+    refreshedInput.select();
+  }
 }
 
 export function bindGlobalActions(renderApp, renderLogin) {
@@ -38,6 +82,7 @@ export function bindGlobalActions(renderApp, renderLogin) {
   if (homeStationButton) {
     homeStationButton.addEventListener("click", async () => {
       state.screen = "station";
+      clearLastScan();
       await renderApp();
     });
   }
@@ -62,6 +107,7 @@ export function bindGlobalActions(renderApp, renderLogin) {
         state.currentStation = station;
         state.screen = "station";
         state.deniedStation = null;
+        clearLastScan();
         if (station !== "overview") {
           setNotice("ok", `${stationLabels[station]} открыта.`);
         }
@@ -98,6 +144,7 @@ export function bindGlobalActions(renderApp, renderLogin) {
         state.currentStation = isManagerRole() ? "washing" : "sorting";
         state.screen = "station";
         state.selectedOrderId = Number(button.dataset.createBaskets);
+        clearLastScan();
         setNotice("ok", isManagerRole() ? "Корзины созданы. Заказ переведён на Стирку." : "Корзины созданы. Заказ готов к передаче на стирку.");
       } catch (error) {
         setNotice("error", error.message);
@@ -153,7 +200,20 @@ export function bindGlobalActions(renderApp, renderLogin) {
         state.currentStation = null;
         state.selectedOrderId = null;
         state.deniedStation = null;
+        clearLastScan();
         setNotice("ok", "Демо-данные сброшены. Сценарий восстановлен.");
+      } catch (error) {
+        setNotice("error", error.message);
+      }
+      await renderApp();
+    });
+  }
+
+  for (const button of app.querySelectorAll("[data-run-sync-now]")) {
+    button.addEventListener("click", async () => {
+      try {
+        await api("/api/sync/run", { method: "POST", body: JSON.stringify({}) });
+        setNotice("ok", "Очередь синхронизации запущена вручную.");
       } catch (error) {
         setNotice("error", error.message);
       }
