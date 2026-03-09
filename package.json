@@ -1,0 +1,11 @@
+{
+  "name": "green-lab-demo-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local demo MVP for Green Lab laundry workflow",
+  "scripts": {
+    "start": "node server.js",
+    "reset-demo": "node reset-demo.js",
+    "test:all": "node scripts/test-all.js"
+  }
+}
